@@ -185,7 +185,14 @@ module ariane_peripherals #(
     `REG_BUS_ASSIGN_TO_REQ(plic_req, reg_bus)
     `REG_BUS_ASSIGN_FROM_RSP(reg_bus, plic_rsp)
 
-    plic_top #(
+            // Drive per-source edge/level selection for PLIC: default level, source 7 edge-triggered
+            logic [ariane_soc::NumSources-1:0] plic_le;
+            always_comb begin
+                plic_le = '0;
+                plic_le[7] = 1'b1; // iDMA completion as edge-triggered to capture pulse
+            end
+
+        plic_top #(
       .N_SOURCE    ( ariane_soc::NumSources  ),
       .N_TARGET    ( ariane_soc::NumTargets  ),
       .MAX_PRIO    ( ariane_soc::MaxPriority ),
@@ -196,7 +203,7 @@ module ariane_peripherals #(
       .rst_ni,
       .req_i         ( plic_req    ),
       .resp_o        ( plic_rsp    ),
-      .le_i          ( '0          ), // 0:level 1:edge
+            .le_i          ( plic_le      ), // 0:level 1:edge per source
       .irq_sources_i ( irq_sources ),
       .eip_targets_o ( irq_o       )
     );
@@ -910,6 +917,8 @@ module ariane_peripherals #(
 			.clk_i      		( clk_i            ),
 			.rst_ni     		( rst_ni           ),
 			.testmode_i 		( 1'b0             ),
+            // IRQ
+            .irq_o              ( irq_sources[7]   ),
 			// slave port
 			.axi_slave  		( dma_cfg          ),
 			// master port
@@ -954,6 +963,9 @@ module ariane_peripherals #(
         assign axi_iommu_tr_req.w_valid  = 1'b0;
         assign axi_iommu_tr_req.b_ready  = 1'b0;
         assign axi_iommu_tr_req.r_ready  = 1'b0;
+
+    // No DMA -> no interrupt on source 7
+    assign irq_sources[7] = 1'b0;
     end
   
     // -------------------------------------------
