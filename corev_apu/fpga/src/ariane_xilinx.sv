@@ -11,7 +11,10 @@
 // Description: Xilinx FPGA top-level
 // Author: Florian Zaruba <zarubaf@iis.ee.ethz.ch>
 
-module ariane_xilinx (
+module ariane_xilinx #(
+  parameter bit          AXI_DRAM_DELAYER_EN = 1'b1,
+  parameter int unsigned DRAM_DELAY_CYCLES   = 200
+) (
 `ifdef GENESYSII
   input  logic         sys_clk_p   ,
   input  logic         sys_clk_n   ,
@@ -924,6 +927,13 @@ AXI_BUS #(
     .AXI_USER_WIDTH ( AxiUserWidth     )
 ) dram();
 
+AXI_BUS #(
+    .AXI_ADDR_WIDTH ( AxiAddrWidth     ),
+    .AXI_DATA_WIDTH ( AxiDataWidth     ),
+    .AXI_ID_WIDTH   ( AxiIdWidthSlaves ),
+    .AXI_USER_WIDTH ( AxiUserWidth     )
+) dram_delayed();
+
 axi_riscv_atomics_wrap #(
     .AXI_ADDR_WIDTH ( AxiAddrWidth     ),
     .AXI_DATA_WIDTH ( AxiDataWidth     ),
@@ -937,6 +947,28 @@ axi_riscv_atomics_wrap #(
     .slv    ( master[ariane_soc::DRAM] ),
     .mst    ( dram                     )
 );
+
+generate
+  if (AXI_DRAM_DELAYER_EN) begin : gen_axi_dram_delayer
+    axi_delayer_intf #(
+      .AXI_ID_WIDTH        ( AxiIdWidthSlaves   ),
+      .AXI_ADDR_WIDTH      ( AxiAddrWidth       ),
+      .AXI_DATA_WIDTH      ( AxiDataWidth       ),
+      .AXI_USER_WIDTH      ( AxiUserWidth       ),
+      .STALL_RANDOM_INPUT  ( 1'b0               ),
+      .STALL_RANDOM_OUTPUT ( 1'b0               ),
+      .FIXED_DELAY_INPUT   ( 0                  ),
+      .FIXED_DELAY_OUTPUT  ( DRAM_DELAY_CYCLES  )
+    ) i_axi_dram_delayer (
+      .clk_i  ( clk          ),
+      .rst_ni ( ndmreset_n   ),
+      .slv    ( dram         ),
+      .mst    ( dram_delayed )
+    );
+  end else begin : gen_axi_dram_bypass
+    `AXI_ASSIGN(dram_delayed, dram);
+  end
+endgenerate
 
 `ifdef PROTOCOL_CHECKER
 logic pc_status;
@@ -993,51 +1025,51 @@ xlnx_protocol_checker i_xlnx_protocol_checker (
 );
 `endif
 
-assign dram.r_user = '0;
-assign dram.b_user = '0;
+assign dram_delayed.r_user = '0;
+assign dram_delayed.b_user = '0;
 
 xlnx_axi_clock_converter i_xlnx_axi_clock_converter_ddr (
   .s_axi_aclk     ( clk              ),
   .s_axi_aresetn  ( ndmreset_n       ),
-  .s_axi_awid     ( dram.aw_id       ),
-  .s_axi_awaddr   ( dram.aw_addr     ),
-  .s_axi_awlen    ( dram.aw_len      ),
-  .s_axi_awsize   ( dram.aw_size     ),
-  .s_axi_awburst  ( dram.aw_burst    ),
-  .s_axi_awlock   ( dram.aw_lock     ),
-  .s_axi_awcache  ( dram.aw_cache    ),
-  .s_axi_awprot   ( dram.aw_prot     ),
-  .s_axi_awregion ( dram.aw_region   ),
-  .s_axi_awqos    ( dram.aw_qos      ),
-  .s_axi_awvalid  ( dram.aw_valid    ),
-  .s_axi_awready  ( dram.aw_ready    ),
-  .s_axi_wdata    ( dram.w_data      ),
-  .s_axi_wstrb    ( dram.w_strb      ),
-  .s_axi_wlast    ( dram.w_last      ),
-  .s_axi_wvalid   ( dram.w_valid     ),
-  .s_axi_wready   ( dram.w_ready     ),
-  .s_axi_bid      ( dram.b_id        ),
-  .s_axi_bresp    ( dram.b_resp      ),
-  .s_axi_bvalid   ( dram.b_valid     ),
-  .s_axi_bready   ( dram.b_ready     ),
-  .s_axi_arid     ( dram.ar_id       ),
-  .s_axi_araddr   ( dram.ar_addr     ),
-  .s_axi_arlen    ( dram.ar_len      ),
-  .s_axi_arsize   ( dram.ar_size     ),
-  .s_axi_arburst  ( dram.ar_burst    ),
-  .s_axi_arlock   ( dram.ar_lock     ),
-  .s_axi_arcache  ( dram.ar_cache    ),
-  .s_axi_arprot   ( dram.ar_prot     ),
-  .s_axi_arregion ( dram.ar_region   ),
-  .s_axi_arqos    ( dram.ar_qos      ),
-  .s_axi_arvalid  ( dram.ar_valid    ),
-  .s_axi_arready  ( dram.ar_ready    ),
-  .s_axi_rid      ( dram.r_id        ),
-  .s_axi_rdata    ( dram.r_data      ),
-  .s_axi_rresp    ( dram.r_resp      ),
-  .s_axi_rlast    ( dram.r_last      ),
-  .s_axi_rvalid   ( dram.r_valid     ),
-  .s_axi_rready   ( dram.r_ready     ),
+  .s_axi_awid     ( dram_delayed.aw_id       ),
+  .s_axi_awaddr   ( dram_delayed.aw_addr     ),
+  .s_axi_awlen    ( dram_delayed.aw_len      ),
+  .s_axi_awsize   ( dram_delayed.aw_size     ),
+  .s_axi_awburst  ( dram_delayed.aw_burst    ),
+  .s_axi_awlock   ( dram_delayed.aw_lock     ),
+  .s_axi_awcache  ( dram_delayed.aw_cache    ),
+  .s_axi_awprot   ( dram_delayed.aw_prot     ),
+  .s_axi_awregion ( dram_delayed.aw_region   ),
+  .s_axi_awqos    ( dram_delayed.aw_qos      ),
+  .s_axi_awvalid  ( dram_delayed.aw_valid    ),
+  .s_axi_awready  ( dram_delayed.aw_ready    ),
+  .s_axi_wdata    ( dram_delayed.w_data      ),
+  .s_axi_wstrb    ( dram_delayed.w_strb      ),
+  .s_axi_wlast    ( dram_delayed.w_last      ),
+  .s_axi_wvalid   ( dram_delayed.w_valid     ),
+  .s_axi_wready   ( dram_delayed.w_ready     ),
+  .s_axi_bid      ( dram_delayed.b_id        ),
+  .s_axi_bresp    ( dram_delayed.b_resp      ),
+  .s_axi_bvalid   ( dram_delayed.b_valid     ),
+  .s_axi_bready   ( dram_delayed.b_ready     ),
+  .s_axi_arid     ( dram_delayed.ar_id       ),
+  .s_axi_araddr   ( dram_delayed.ar_addr     ),
+  .s_axi_arlen    ( dram_delayed.ar_len      ),
+  .s_axi_arsize   ( dram_delayed.ar_size     ),
+  .s_axi_arburst  ( dram_delayed.ar_burst    ),
+  .s_axi_arlock   ( dram_delayed.ar_lock     ),
+  .s_axi_arcache  ( dram_delayed.ar_cache    ),
+  .s_axi_arprot   ( dram_delayed.ar_prot     ),
+  .s_axi_arregion ( dram_delayed.ar_region   ),
+  .s_axi_arqos    ( dram_delayed.ar_qos      ),
+  .s_axi_arvalid  ( dram_delayed.ar_valid    ),
+  .s_axi_arready  ( dram_delayed.ar_ready    ),
+  .s_axi_rid      ( dram_delayed.r_id        ),
+  .s_axi_rdata    ( dram_delayed.r_data      ),
+  .s_axi_rresp    ( dram_delayed.r_resp      ),
+  .s_axi_rlast    ( dram_delayed.r_last      ),
+  .s_axi_rvalid   ( dram_delayed.r_valid     ),
+  .s_axi_rready   ( dram_delayed.r_ready     ),
   // to size converter
   .m_axi_aclk     ( ddr_clock_out    ),
   .m_axi_aresetn  ( ndmreset_n       ),
