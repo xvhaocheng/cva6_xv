@@ -9,10 +9,9 @@
 // specific language governing permissions and limitations under the License.
 
 // Author: Florian Zaruba, zarubaf@iis.ee.ethz.ch
-// Description: Delay (or randomize) AXI-like handshaking
+// Description: Delay AXI-like handshaking
 
 module stream_delay #(
-    parameter bit   StallRandom = 0,
     parameter int   FixedDelay  = 1,
     parameter type  payload_t  = logic
 )(
@@ -28,13 +27,14 @@ module stream_delay #(
     output logic     valid_o
 );
 
-    if (FixedDelay == 0 && !StallRandom) begin : gen_pass_through
+    if (FixedDelay == 0) begin : gen_pass_through
         assign ready_o = ready_i;
         assign valid_o = valid_i;
         assign payload_o = payload_i;
     end else begin : gen_delay
 
-        localparam int unsigned CounterBits = 4;
+        localparam int unsigned CounterBits =
+            (FixedDelay > 1) ? $clog2(FixedDelay + 1) : 1;
 
         typedef enum logic [1:0] {
             Idle, Valid, Ready
@@ -43,7 +43,7 @@ module stream_delay #(
         state_e state_d, state_q;
 
         logic       load;
-        logic [3:0] count_out;
+        logic [CounterBits-1:0] count_out;
         logic       en;
 
         logic [CounterBits-1:0] counter_load;
@@ -63,15 +63,8 @@ module stream_delay #(
                         load = 1'b1;
                         state_d = Valid;
                         // Just one cycle delay
-                        if (FixedDelay == 1 || (StallRandom && counter_load == 1)) begin
+                        if (FixedDelay == 1) begin
                             state_d = Ready;
-                        end
-
-                        if (StallRandom && counter_load == 0) begin
-                            valid_o = 1'b1;
-                            ready_o = ready_i;
-                            if (ready_i) state_d = Idle;
-                            else state_d = Ready;
                         end
                     end
                 end
@@ -92,19 +85,7 @@ module stream_delay #(
 
         end
 
-        if (StallRandom) begin : gen_random_stall
-            lfsr_16bit #(
-              .WIDTH ( 16 )
-            ) i_lfsr_16bit (
-                .clk_i          ( clk_i        ),
-                .rst_ni         ( rst_ni       ),
-                .en_i           ( load         ),
-                .refill_way_oh  (              ),
-                .refill_way_bin ( counter_load )
-            );
-        end else begin : gen_fixed_delay
-            assign counter_load = FixedDelay;
-        end
+        assign counter_load = FixedDelay;
 
         counter #(
             .WIDTH      ( CounterBits )

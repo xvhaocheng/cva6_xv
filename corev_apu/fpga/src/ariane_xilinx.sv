@@ -11,10 +11,7 @@
 // Description: Xilinx FPGA top-level
 // Author: Florian Zaruba <zarubaf@iis.ee.ethz.ch>
 
-module ariane_xilinx #(
-  parameter bit          AXI_DRAM_DELAYER_EN = 1'b1,
-  parameter int unsigned DRAM_DELAY_CYCLES   = 200
-) (
+module ariane_xilinx (
 `ifdef GENESYSII
   input  logic         sys_clk_p   ,
   input  logic         sys_clk_n   ,
@@ -927,12 +924,7 @@ AXI_BUS #(
     .AXI_USER_WIDTH ( AxiUserWidth     )
 ) dram();
 
-AXI_BUS #(
-    .AXI_ADDR_WIDTH ( AxiAddrWidth     ),
-    .AXI_DATA_WIDTH ( AxiDataWidth     ),
-    .AXI_ID_WIDTH   ( AxiIdWidthSlaves ),
-    .AXI_USER_WIDTH ( AxiUserWidth     )
-) dram_delayed();
+
 
 axi_riscv_atomics_wrap #(
     .AXI_ADDR_WIDTH ( AxiAddrWidth     ),
@@ -948,27 +940,28 @@ axi_riscv_atomics_wrap #(
     .mst    ( dram                     )
 );
 
-generate
-  if (AXI_DRAM_DELAYER_EN) begin : gen_axi_dram_delayer
-    axi_delayer_intf #(
-      .AXI_ID_WIDTH        ( AxiIdWidthSlaves   ),
-      .AXI_ADDR_WIDTH      ( AxiAddrWidth       ),
-      .AXI_DATA_WIDTH      ( AxiDataWidth       ),
-      .AXI_USER_WIDTH      ( AxiUserWidth       ),
-      .STALL_RANDOM_INPUT  ( 1'b0               ),
-      .STALL_RANDOM_OUTPUT ( 1'b0               ),
-      .FIXED_DELAY_INPUT   ( 0                  ),
-      .FIXED_DELAY_OUTPUT  ( DRAM_DELAY_CYCLES  )
-    ) i_axi_dram_delayer (
-      .clk_i  ( clk          ),
-      .rst_ni ( ndmreset_n   ),
-      .slv    ( dram         ),
-      .mst    ( dram_delayed )
-    );
-  end else begin : gen_axi_dram_bypass
-    `AXI_ASSIGN(dram_delayed, dram);
-  end
-endgenerate
+AXI_BUS #(
+  .AXI_ADDR_WIDTH ( AxiAddrWidth     ),
+  .AXI_DATA_WIDTH ( AxiDataWidth     ),
+  .AXI_ID_WIDTH   ( AxiIdWidthSlaves ),
+  .AXI_USER_WIDTH ( AxiUserWidth     )
+) dram_delayed();
+
+
+axi_delayer_intf #(
+  .AXI_ID_WIDTH        ( AxiIdWidthSlaves   ),
+  .AXI_ADDR_WIDTH      ( AxiAddrWidth       ),
+  .AXI_DATA_WIDTH      ( AxiDataWidth       ),
+  .AXI_USER_WIDTH      ( AxiUserWidth       ),
+  .FIXED_DELAY_OUTPUT  ( 5                 )
+) i_axi_delayer (
+  .clk_i  ( clk          ),
+  .rst_ni ( ndmreset_n   ),
+  .slv    ( dram         ),
+  .mst    ( dram_delayed )
+);
+
+
 
 `ifdef PROTOCOL_CHECKER
 logic pc_status;

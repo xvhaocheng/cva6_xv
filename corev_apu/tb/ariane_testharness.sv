@@ -429,9 +429,6 @@ module ariane_testharness #(
     .AXI_ADDR_WIDTH      ( AXI_ADDRESS_WIDTH        ),
     .AXI_DATA_WIDTH      ( AXI_DATA_WIDTH           ),
     .AXI_USER_WIDTH      ( AXI_USER_WIDTH           ),
-    .STALL_RANDOM_INPUT  ( StallRandomInput         ),
-    .STALL_RANDOM_OUTPUT ( StallRandomOutput        ),
-    .FIXED_DELAY_INPUT   ( 0                        ),
     .FIXED_DELAY_OUTPUT  ( 0                        )
   ) i_axi_delayer (
     .clk_i  ( clk_i        ),

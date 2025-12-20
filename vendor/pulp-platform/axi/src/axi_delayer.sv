@@ -13,7 +13,7 @@
 // - Florian Zaruba <zarubaf@iis.ee.ethz.ch>
 // - Andreas Kurth <akurth@iis.ee.ethz.ch>
 
-/// Synthesizable module that (randomly) delays AXI channels.
+/// Synthesizable module that delays AXI response channels (B/R).
 module axi_delayer #(
   // AXI channel types
   parameter type aw_chan_t = logic,
@@ -25,9 +25,6 @@ module axi_delayer #(
   parameter type     req_t = logic,
   parameter type    resp_t = logic,
   // delay parameters
-  parameter bit          StallRandomInput  = 0,
-  parameter bit          StallRandomOutput = 0,
-  parameter int unsigned FixedDelayInput   = 1,
   parameter int unsigned FixedDelayOutput  = 1
 ) (
   input  logic  clk_i,      // Clock
@@ -39,57 +36,23 @@ module axi_delayer #(
   output req_t  mst_req_o,
   input  resp_t mst_resp_i
 );
-  // AW
-  stream_delay #(
-    .StallRandom ( StallRandomInput ),
-    .FixedDelay  ( FixedDelayInput  ),
-    .payload_t   ( aw_chan_t        )
-  ) i_stream_delay_aw (
-    .clk_i,
-    .rst_ni,
-    .payload_i ( slv_req_i.aw        ),
-    .ready_o   ( slv_resp_o.aw_ready ),
-    .valid_i   ( slv_req_i.aw_valid  ),
-    .payload_o ( mst_req_o.aw        ),
-    .ready_i   ( mst_resp_i.aw_ready ),
-    .valid_o   ( mst_req_o.aw_valid  )
-  );
+  // AW pass-through
+  assign mst_req_o.aw = slv_req_i.aw;
+  assign mst_req_o.aw_valid = slv_req_i.aw_valid;
+  assign slv_resp_o.aw_ready = mst_resp_i.aw_ready;
 
-  // AR
-  stream_delay #(
-    .StallRandom ( StallRandomInput ),
-    .FixedDelay  ( FixedDelayInput  ),
-    .payload_t   ( ar_chan_t        )
-  ) i_stream_delay_ar (
-    .clk_i,
-    .rst_ni,
-    .payload_i ( slv_req_i.ar        ),
-    .ready_o   ( slv_resp_o.ar_ready ),
-    .valid_i   ( slv_req_i.ar_valid  ),
-    .payload_o ( mst_req_o.ar        ),
-    .ready_i   ( mst_resp_i.ar_ready ),
-    .valid_o   ( mst_req_o.ar_valid  )
-  );
+  // AR pass-through
+  assign mst_req_o.ar = slv_req_i.ar;
+  assign mst_req_o.ar_valid = slv_req_i.ar_valid;
+  assign slv_resp_o.ar_ready = mst_resp_i.ar_ready;
 
-  // W
-  stream_delay #(
-    .StallRandom ( StallRandomInput ),
-    .FixedDelay  ( FixedDelayInput  ),
-    .payload_t   ( w_chan_t         )
-  ) i_stream_delay_w (
-    .clk_i,
-    .rst_ni,
-    .payload_i ( slv_req_i.w        ),
-    .ready_o   ( slv_resp_o.w_ready ),
-    .valid_i   ( slv_req_i.w_valid  ),
-    .payload_o ( mst_req_o.w        ),
-    .ready_i   ( mst_resp_i.w_ready ),
-    .valid_o   ( mst_req_o.w_valid  )
-  );
+  // W pass-through
+  assign mst_req_o.w = slv_req_i.w;
+  assign mst_req_o.w_valid = slv_req_i.w_valid;
+  assign slv_resp_o.w_ready = mst_resp_i.w_ready;
 
   // B
   stream_delay #(
-    .StallRandom ( StallRandomOutput ),
     .FixedDelay  ( FixedDelayOutput  ),
     .payload_t   ( b_chan_t          )
   ) i_stream_delay_b (
@@ -104,8 +67,7 @@ module axi_delayer #(
   );
 
   // R
-   stream_delay #(
-    .StallRandom ( StallRandomOutput ),
+  stream_delay #(
     .FixedDelay  ( FixedDelayOutput  ),
     .payload_t   ( r_chan_t          )
   ) i_stream_delay_r (
@@ -130,9 +92,6 @@ module axi_delayer_intf #(
   parameter int unsigned AXI_ADDR_WIDTH      = 0,
   parameter int unsigned AXI_DATA_WIDTH      = 0,
   parameter int unsigned AXI_USER_WIDTH      = 0,
-  parameter bit          STALL_RANDOM_INPUT  = 0,
-  parameter bit          STALL_RANDOM_OUTPUT = 0,
-  parameter int unsigned FIXED_DELAY_INPUT   = 1,
   parameter int unsigned FIXED_DELAY_OUTPUT  = 1
 ) (
   input  logic    clk_i,
@@ -172,9 +131,6 @@ module axi_delayer_intf #(
     .r_chan_t          (            r_chan_t ),
     .req_t             (               req_t ),
     .resp_t            (              resp_t ),
-    .StallRandomInput  ( STALL_RANDOM_INPUT  ),
-    .StallRandomOutput ( STALL_RANDOM_OUTPUT ),
-    .FixedDelayInput   ( FIXED_DELAY_INPUT   ),
     .FixedDelayOutput  ( FIXED_DELAY_OUTPUT  )
   ) i_axi_delayer (
     .clk_i,   // Clock
